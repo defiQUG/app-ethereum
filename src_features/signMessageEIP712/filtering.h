@@ -13,6 +13,7 @@ bool filtering_date_time(const uint8_t *payload, uint8_t length);
 bool filtering_amount_join_token(const uint8_t *payload, uint8_t length);
 bool filtering_amount_join_value(const uint8_t *payload, uint8_t length);
 bool filtering_raw_field(const uint8_t *payload, uint8_t length);
+bool filtering_empty_path(const uint8_t *payload, uint8_t length);
 
 #endif  // HAVE_EIP712_FULL_SUPPORT
 

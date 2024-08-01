@@ -475,4 +475,23 @@ bool filtering_raw_field(const uint8_t *payload, uint8_t length) {
     return true;
 }
 
+bool filtering_empty_path(const uint8_t *payload, uint8_t length) {
+    uint8_t path_len;
+    uint8_t offset = 0;
+
+    if ((offset + sizeof(path_len)) > length) {
+        return false;
+    }
+    path_len = payload[offset++];
+    if ((offset + path_len) > length) {
+        return false;
+    }
+    // TODO: handling
+    offset += path_len;
+    if (offset < path_len) {
+        return false;
+    }
+    return true;
+}
+
 #endif  // HAVE_EIP712_FULL_SUPPORT

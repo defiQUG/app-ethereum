@@ -27,6 +27,7 @@
 #define P2_IMPL_ARRAY             0x0F
 #define P2_IMPL_FIELD             P2_DEF_FIELD
 #define P2_FILT_ACTIVATE          0x00
+#define P2_FILT_EMPTY_PATH        0x01
 #define P2_FILT_MESSAGE_INFO      0x0F
 #define P2_FILT_DATE_TIME         0xFC
 #define P2_FILT_AMOUNT_JOIN_TOKEN 0xFD
@@ -171,6 +172,9 @@ bool handle_eip712_filtering(const uint8_t *const apdu_buf) {
                 ret = compute_schema_hash();
             }
             forget_known_assets();
+            break;
+        case P2_FILT_EMPTY_PATH:
+            ret = filtering_empty_path(&apdu_buf[OFFSET_CDATA], apdu_buf[OFFSET_LC]);
             break;
         case P2_FILT_MESSAGE_INFO:
             ret = filtering_message_info(&apdu_buf[OFFSET_CDATA], apdu_buf[OFFSET_LC]);
