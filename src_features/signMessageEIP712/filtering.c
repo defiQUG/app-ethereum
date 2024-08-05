@@ -237,21 +237,16 @@ static bool matches_backup_path(const char *path, uint8_t path_len) {
     uint8_t key_len;
     uint8_t offset = 0;
 
-    PRINTF("backup path = \"");
     for (uint8_t i = 0; i < path_backup_get_depth_count(); ++i) {
         if (i > 0) {
-            PRINTF(".");
             if (memcmp(path + offset, ".", 1) != 0) {
                 return false;
             }
             offset += 1;
         }
-        if ((field_ptr = path_get_nth_field(i + 1)) != NULL) {
+        if ((field_ptr = path_backup_get_nth_field(i + 1)) != NULL) {
             if ((key = get_struct_field_keyname(field_ptr, &key_len)) != NULL) {
                 // field name
-                for (int idx = 0; idx < key_len; ++idx) {
-                    PRINTF("%c", key[idx]);
-                }
                 if (memcmp(path + offset, key, key_len) != 0) {
                     return false;
                 }
@@ -263,7 +258,6 @@ static bool matches_backup_path(const char *path, uint8_t path_len) {
 
                     get_struct_field_array_lvls_array(field_ptr, &lvl_count);
                     for (int j = 0; j < lvl_count; ++j) {
-                        PRINTF(".[]");
                         if (memcmp(path + offset, ".[]", 3) != 0) {
                             return false;
                         }
@@ -272,6 +266,43 @@ static bool matches_backup_path(const char *path, uint8_t path_len) {
                 }
             }
         }
+    }
+    return true;
+}
+
+static bool discarded_path_exists(const char *path, uint8_t path_len) {
+    const void *field_ptr;
+    const char *key;
+    uint8_t key_len;
+    uint8_t offset = 0;
+
+
+    for (uint8_t i = 0; i < path_backup_get_depth_count(); ++i) {
+        if (i > 0) {
+            offset += 1;
+        }
+        if ((field_ptr = path_backup_get_nth_field(i + 1)) != NULL) {
+            if ((key = get_struct_field_keyname(field_ptr, &key_len)) != NULL) {
+                // field name
+                offset += key_len;
+
+                // array levels
+                if (struct_field_is_array(field_ptr)) {
+                    uint8_t lvl_count;
+
+                    get_struct_field_array_lvls_array(field_ptr, &lvl_count);
+                    for (int j = 0; j < lvl_count; ++j) {
+                        offset += 3;
+                    }
+                }
+            }
+        }
+    }
+    // TODO: traverse by name
+    PRINTF("offset = %u\n", offset);
+    PRINTF("remaining path = \"");
+    for (int idx = offset; idx < path_len; ++idx) {
+        PRINTF("%c", path[idx]);
     }
     PRINTF("\"\n");
     return true;
@@ -294,16 +325,20 @@ bool filtering_discarded_path(const uint8_t *payload, uint8_t length) {
     if (offset < path_len) {
         return false;
     }
-    // TODO: handling
-    // - path.startswith(path_backup)
+    // - path.startswith(path_backup) DONE
+    PRINTF("given path = \"");
     for (int idx = 0; idx < path_len; ++idx) {
         PRINTF("%c", path[idx]);
     }
+    PRINTF("\"\n");
     if (!matches_backup_path(path, path_len)) {
         return false;
     }
-    // - typed_data.exists(path)
-    // - save path in memory (in ascii)
+    // - typed_data.exists(path) TODO
+    if (!discarded_path_exists(path, path_len)) {
+        return false;
+    }
+    // - save path in memory (in ascii) TODO
     return true;
 }
 

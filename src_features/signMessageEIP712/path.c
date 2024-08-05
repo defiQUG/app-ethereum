@@ -47,11 +47,11 @@ static const void *get_nth_field_from(const s_path *path, uint8_t *fields_count_
             *fields_count_ptr = fields_count;
         }
         // check if the index at this depth makes sense
-        if (path_struct->depths[depth] > fields_count) {
+        if (path->depths[depth] > fields_count) {
             return NULL;
         }
 
-        for (uint8_t index = 0; index < path_struct->depths[depth]; ++index) {
+        for (uint8_t index = 0; index < path->depths[depth]; ++index) {
             field_ptr = get_next_struct_field(field_ptr);
         }
         if (struct_field_type(field_ptr) == TYPE_CUSTOM) {
@@ -86,6 +86,10 @@ static inline const void *get_field(uint8_t *const fields_count) {
  */
 const void *path_get_nth_field(uint8_t n) {
     return get_nth_field(NULL, n);
+}
+
+const void *path_backup_get_nth_field(uint8_t n) {
+    return get_nth_field_from(path_backup, NULL, n);
 }
 
 /**
@@ -661,7 +665,20 @@ uint8_t path_get_depth_count(void) {
  * @return depth count
  */
 uint8_t path_backup_get_depth_count(void) {
-    return get_depth_count(path_backup);
+    const void *field_ptr;
+    uint8_t count = get_depth_count(path_backup);
+
+    // decrease while it does not point to an array type
+    while (count > 1) {
+        if ((field_ptr = path_backup_get_nth_field(count)) == NULL) {
+            return 0;
+        }
+        if (struct_field_is_array(field_ptr)) {
+            break;
+        }
+        count -= 1;
+    }
+    return count;
 }
 
 /**
