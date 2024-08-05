@@ -4,7 +4,6 @@
 #include "common_ui.h"
 
 unsigned int io_seproxyhal_touch_signMessage_ok(void) {
-    uint32_t tx = 0;
     unsigned int info = 0;
     if (bip32_derive_ecdsa_sign_rs_hash_256(CX_CURVE_256K1,
                                             tmpCtx.messageSigningContext.bip32.path,
@@ -25,24 +24,9 @@ unsigned int io_seproxyhal_touch_signMessage_ok(void) {
     if (info & CX_ECCINFO_xGTn) {
         G_io_apdu_buffer[0] += 2;
     }
-    tx = 65;
-    G_io_apdu_buffer[tx++] = 0x90;
-    G_io_apdu_buffer[tx++] = 0x00;
-    reset_app_context();
-    // Send back the response, do not restart the event loop
-    io_exchange(CHANNEL_APDU | IO_RETURN_AFTER_TX, tx);
-    // Display back the original UX
-    ui_idle();
-    return 0;  // do not redraw the widget
+    return io_seproxyhal_send_status(APDU_RESPONSE_OK, 65, true, true);
 }
 
 unsigned int io_seproxyhal_touch_signMessage_cancel(void) {
-    reset_app_context();
-    G_io_apdu_buffer[0] = 0x69;
-    G_io_apdu_buffer[1] = 0x85;
-    // Send back the response, do not restart the event loop
-    io_exchange(CHANNEL_APDU | IO_RETURN_AFTER_TX, 2);
-    // Display back the original UX
-    ui_idle();
-    return 0;  // do not redraw the widget
+    return io_seproxyhal_send_status(APDU_RESPONSE_CONDITION_NOT_SATISFIED, 0, true, true);
 }
