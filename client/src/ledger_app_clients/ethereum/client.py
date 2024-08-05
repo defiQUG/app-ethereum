@@ -146,6 +146,9 @@ class EthAppClient:
     def eip712_filtering_activate(self):
         return self._exchange_async(self._cmd_builder.eip712_filtering_activate())
 
+    def eip712_filtering_discarded_path(self, path: str):
+        return self._exchange(self._cmd_builder.eip712_filtering_discarded_path(path))
+
     def eip712_filtering_message_info(self, name: str, filters_count: int, sig: bytes):
         return self._exchange_async(self._cmd_builder.eip712_filtering_message_info(name,
                                                                                     filters_count,

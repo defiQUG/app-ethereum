@@ -41,6 +41,7 @@ class P2Type(IntEnum):
     LEGACY_IMPLEM = 0x00
     NEW_IMPLEM = 0x01
     FILTERING_ACTIVATE = 0x00
+    FILTERING_DISCARDED_PATH = 0x01
     FILTERING_MESSAGE_INFO = 0x0f
     FILTERING_DATETIME = 0xfc
     FILTERING_TOKEN_ADDR_CHECK = 0xfd
@@ -163,6 +164,15 @@ class CommandBuilder:
         data.append(len(sig))
         data += sig
         return data
+
+    def eip712_filtering_discarded_path(self, path: str) -> bytes:
+        data = bytearray()
+        data.append(len(path))
+        data += path.encode()
+        return self._serialize(InsType.EIP712_SEND_FILTERING,
+                               P1Type.COMPLETE_SEND,
+                               P2Type.FILTERING_DISCARDED_PATH,
+                               data)
 
     def eip712_filtering_message_info(self, name: str, filters_count: int, sig: bytes) -> bytes:
         data = bytearray()

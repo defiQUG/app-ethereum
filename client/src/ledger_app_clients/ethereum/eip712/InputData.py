@@ -234,6 +234,11 @@ def evaluate_field(structs, data, field, lvls_left, new_level=True):
     if len(array_lvls) > 0 and lvls_left > 0:
         with app_client.eip712_send_struct_impl_array(len(data)):
             pass
+        if len(data) == 0:
+            for path in filtering_paths.keys():
+                dpath = ".".join(current_path) + ".[]"
+                if path.startswith(dpath):
+                    app_client.eip712_filtering_discarded_path(dpath)
         idx = 0
         for subdata in data:
             current_path.append("[]")
