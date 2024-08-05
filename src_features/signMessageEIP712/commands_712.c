@@ -174,7 +174,7 @@ bool handle_eip712_filtering(const uint8_t *const apdu_buf) {
             forget_known_assets();
             break;
         case P2_FILT_EMPTY_PATH:
-            ret = filtering_empty_path(&apdu_buf[OFFSET_CDATA], apdu_buf[OFFSET_LC]);
+            ret = filtering_discarded_path(&apdu_buf[OFFSET_CDATA], apdu_buf[OFFSET_LC]);
             break;
         case P2_FILT_MESSAGE_INFO:
             ret = filtering_message_info(&apdu_buf[OFFSET_CDATA], apdu_buf[OFFSET_LC]);
@@ -182,17 +182,18 @@ bool handle_eip712_filtering(const uint8_t *const apdu_buf) {
                 reply_apdu = false;
             }
             break;
+        // TODO: add a third argument (bool discarded) to these functions and pass apdu_buf[OFFSET_P1] == 1 to it
         case P2_FILT_DATE_TIME:
-            ret = filtering_date_time(&apdu_buf[OFFSET_CDATA], apdu_buf[OFFSET_LC]);
+            ret = filtering_date_time(&apdu_buf[OFFSET_CDATA], apdu_buf[OFFSET_LC], apdu_buf[OFFSET_P1] == 1);
             break;
         case P2_FILT_AMOUNT_JOIN_TOKEN:
-            ret = filtering_amount_join_token(&apdu_buf[OFFSET_CDATA], apdu_buf[OFFSET_LC]);
+            ret = filtering_amount_join_token(&apdu_buf[OFFSET_CDATA], apdu_buf[OFFSET_LC], apdu_buf[OFFSET_P1] == 1);
             break;
         case P2_FILT_AMOUNT_JOIN_VALUE:
-            ret = filtering_amount_join_value(&apdu_buf[OFFSET_CDATA], apdu_buf[OFFSET_LC]);
+            ret = filtering_amount_join_value(&apdu_buf[OFFSET_CDATA], apdu_buf[OFFSET_LC], apdu_buf[OFFSET_P1] == 1);
             break;
         case P2_FILT_RAW_FIELD:
-            ret = filtering_raw_field(&apdu_buf[OFFSET_CDATA], apdu_buf[OFFSET_LC]);
+            ret = filtering_raw_field(&apdu_buf[OFFSET_CDATA], apdu_buf[OFFSET_LC], apdu_buf[OFFSET_P1] == 1);
             break;
         default:
             PRINTF("Unknown P2 0x%x for APDU 0x%x\n", apdu_buf[OFFSET_P2], apdu_buf[OFFSET_INS]);

@@ -13,28 +13,30 @@
 #include "typed_data.h"
 
 static s_path *path_struct = NULL;
+static s_path *path_backup = NULL;
 
 /**
- * Get the field pointer to by the first N depths of the path.
+ * Get the field pointer to by the first N depths of the given path
  *
+ * @param[in] path given path struct
  * @param[out] fields_count_ptr the number of fields in the last evaluated depth
  * @param[in] n the number of depths to evaluate
  * @return the field which the first Nth depths points to
  */
-static const void *get_nth_field(uint8_t *const fields_count_ptr, uint8_t n) {
+static const void *get_nth_field_from(const s_path *path, uint8_t *fields_count_ptr, uint8_t n) {
     const void *struct_ptr = NULL;
     const void *field_ptr = NULL;
     const char *typename;
     uint8_t length;
     uint8_t fields_count;
 
-    if (path_struct == NULL) {
+    if (path == NULL) {
         return NULL;
     }
 
-    struct_ptr = path_struct->root_struct;
+    struct_ptr = path->root_struct;
 
-    if (n > path_struct->depth_count)  // sanity check
+    if (n > path->depth_count)  // sanity check
     {
         return NULL;
     }
@@ -60,6 +62,10 @@ static const void *get_nth_field(uint8_t *const fields_count_ptr, uint8_t n) {
         }
     }
     return field_ptr;
+}
+
+static const void *get_nth_field(uint8_t *fields_count_ptr, uint8_t n) {
+    return get_nth_field_from(path_struct, fields_count_ptr, n);
 }
 
 /**
@@ -440,6 +446,10 @@ static bool check_and_add_array_depth(const void *depth,
     return true;
 }
 
+static void backup_path(void) {
+    memcpy(path_backup, path_struct, sizeof(*path_backup));
+}
+
 /**
  * Add a new array depth with a given size (number of elements).
  *
@@ -467,6 +477,9 @@ bool path_new_array_depth(const uint8_t *const data, uint8_t length) {
     }
 
     array_size = *data;
+    if (array_size == 0) {
+        backup_path();
+    }
     if (!path_update(false, array_size > 0)) {
         return false;
     }
@@ -621,15 +634,34 @@ const void *path_get_root(void) {
 }
 
 /**
- * Get the current amount of depth
+ * Get the current amount of depth in a given path struct
+ *
+ * @param[in] given path struct
+ * @return depth count
+ */
+static uint8_t get_depth_count(const s_path *path) {
+    if (path == NULL) {
+        return 0;
+    }
+    return path->depth_count;
+}
+
+/**
+ * Get the current amount of depth in the path
  *
  * @return depth count
  */
 uint8_t path_get_depth_count(void) {
-    if (path_struct == NULL) {
-        return 0;
-    }
-    return path_struct->depth_count;
+    return get_depth_count(path_struct);
+}
+
+/**
+ * Get the current amount of depth in the backup path
+ *
+ * @return depth count
+ */
+uint8_t path_backup_get_depth_count(void) {
+    return get_depth_count(path_backup);
 }
 
 /**
@@ -668,13 +700,15 @@ uint32_t get_path_crc(void) {
  */
 bool path_init(void) {
     if (path_struct == NULL) {
-        if ((path_struct = MEM_ALLOC_AND_ALIGN_TYPE(*path_struct)) == NULL) {
+        if (((path_struct = MEM_ALLOC_AND_ALIGN_TYPE(*path_struct)) == NULL) ||
+            ((path_backup = MEM_ALLOC_AND_ALIGN_TYPE(*path_backup)) == NULL)) {
             apdu_response_code = APDU_RESPONSE_INSUFFICIENT_MEMORY;
         } else {
-            path_struct->depth_count = 0;
+            explicit_bzero(path_struct, sizeof(*path_struct));
+            explicit_bzero(path_backup, sizeof(*path_backup));
         }
     }
-    return path_struct != NULL;
+    return (path_struct != NULL) && (path_backup != NULL);
 }
 
 /**

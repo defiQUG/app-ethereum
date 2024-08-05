@@ -227,13 +227,95 @@ bool filtering_message_info(const uint8_t *payload, uint8_t length) {
 }
 
 /**
+ * Reconstruct the field path and hash it
+ *
+ * @param[in] hash_ctx the hashing context
+ */
+static bool matches_backup_path(const char *path, uint8_t path_len) {
+    const void *field_ptr;
+    const char *key;
+    uint8_t key_len;
+    uint8_t offset = 0;
+
+    PRINTF("backup path = \"");
+    for (uint8_t i = 0; i < path_backup_get_depth_count(); ++i) {
+        if (i > 0) {
+            PRINTF(".");
+            if (memcmp(path + offset, ".", 1) != 0) {
+                return false;
+            }
+            offset += 1;
+        }
+        if ((field_ptr = path_get_nth_field(i + 1)) != NULL) {
+            if ((key = get_struct_field_keyname(field_ptr, &key_len)) != NULL) {
+                // field name
+                for (int idx = 0; idx < key_len; ++idx) {
+                    PRINTF("%c", key[idx]);
+                }
+                if (memcmp(path + offset, key, key_len) != 0) {
+                    return false;
+                }
+                offset += key_len;
+
+                // array levels
+                if (struct_field_is_array(field_ptr)) {
+                    uint8_t lvl_count;
+
+                    get_struct_field_array_lvls_array(field_ptr, &lvl_count);
+                    for (int j = 0; j < lvl_count; ++j) {
+                        PRINTF(".[]");
+                        if (memcmp(path + offset, ".[]", 3) != 0) {
+                            return false;
+                        }
+                        offset += 3;
+                    }
+                }
+            }
+        }
+    }
+    PRINTF("\"\n");
+    return true;
+}
+
+bool filtering_discarded_path(const uint8_t *payload, uint8_t length) {
+    uint8_t path_len;
+    const char *path;
+    uint8_t offset = 0;
+
+    if ((offset + sizeof(path_len)) > length) {
+        return false;
+    }
+    path_len = payload[offset++];
+    if ((offset + path_len) > length) {
+        return false;
+    }
+    path = (char*)&payload[offset];
+    offset += path_len;
+    if (offset < path_len) {
+        return false;
+    }
+    // TODO: handling
+    // - path.startswith(path_backup)
+    for (int idx = 0; idx < path_len; ++idx) {
+        PRINTF("%c", path[idx]);
+    }
+    if (!matches_backup_path(path, path_len)) {
+        return false;
+    }
+    // - typed_data.exists(path)
+    // - save path in memory (in ascii)
+    return true;
+}
+
+/**
  * Command to display a field as a date-time
  *
  * @param[in] payload the payload to parse
  * @param[in] length the payload length
+ * @param[in] discarded if the filter targets a field that is does not exist (within an empty array)
  * @return whether it was successful or not
  */
-bool filtering_date_time(const uint8_t *payload, uint8_t length) {
+bool filtering_date_time(const uint8_t *payload, uint8_t length, bool discarded) {
     uint8_t name_len;
     const char *name;
     uint8_t sig_len;
@@ -291,9 +373,10 @@ bool filtering_date_time(const uint8_t *payload, uint8_t length) {
  *
  * @param[in] payload the payload to parse
  * @param[in] length the payload length
+ * @param[in] discarded if the filter targets a field that is does not exist (within an empty array)
  * @return whether it was successful or not
  */
-bool filtering_amount_join_token(const uint8_t *payload, uint8_t length) {
+bool filtering_amount_join_token(const uint8_t *payload, uint8_t length, bool discarded) {
     uint8_t token_idx;
     uint8_t sig_len;
     const uint8_t *sig;
@@ -343,9 +426,10 @@ bool filtering_amount_join_token(const uint8_t *payload, uint8_t length) {
  *
  * @param[in] payload the payload to parse
  * @param[in] length the payload length
+ * @param[in] discarded if the filter targets a field that is does not exist (within an empty array)
  * @return whether it was successful or not
  */
-bool filtering_amount_join_value(const uint8_t *payload, uint8_t length) {
+bool filtering_amount_join_value(const uint8_t *payload, uint8_t length, bool discarded) {
     uint8_t name_len;
     const char *name;
     uint8_t token_idx;
@@ -423,9 +507,10 @@ bool filtering_amount_join_value(const uint8_t *payload, uint8_t length) {
  *
  * @param[in] payload the payload to parse
  * @param[in] length the payload length
+ * @param[in] discarded if the filter targets a field that is does not exist (within an empty array)
  * @return whether it was successful or not
  */
-bool filtering_raw_field(const uint8_t *payload, uint8_t length) {
+bool filtering_raw_field(const uint8_t *payload, uint8_t length, bool discarded) {
     uint8_t name_len;
     const char *name;
     uint8_t sig_len;
@@ -472,25 +557,6 @@ bool filtering_raw_field(const uint8_t *payload, uint8_t length) {
         ui_712_set_title(name, name_len);
     }
     ui_712_flag_field(true, name_len > 0, false, false);
-    return true;
-}
-
-bool filtering_empty_path(const uint8_t *payload, uint8_t length) {
-    uint8_t path_len;
-    uint8_t offset = 0;
-
-    if ((offset + sizeof(path_len)) > length) {
-        return false;
-    }
-    path_len = payload[offset++];
-    if ((offset + path_len) > length) {
-        return false;
-    }
-    // TODO: handling
-    offset += path_len;
-    if (offset < path_len) {
-        return false;
-    }
     return true;
 }
 
