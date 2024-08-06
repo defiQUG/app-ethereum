@@ -238,7 +238,7 @@ def evaluate_field(structs, data, field, lvls_left, new_level=True):
             for path in filtering_paths.keys():
                 dpath = ".".join(current_path) + ".[]"
                 if path.startswith(dpath):
-                    app_client.eip712_filtering_discarded_path(dpath)
+                    app_client.eip712_filtering_discarded_path(path)
         idx = 0
         for subdata in data:
             current_path.append("[]")
