@@ -21,6 +21,7 @@
 
 #include "os_io_seproxyhal.h"
 
+#include "parser.h"
 #include "glyphs.h"
 #include "common_utils.h"
 
@@ -118,244 +119,135 @@ const uint8_t *parseBip32(const uint8_t *dataBuffer, uint8_t *dataLength, bip32_
     return dataBuffer;
 }
 
-void handleApdu(unsigned int *flags, unsigned int *tx) {
-    unsigned short sw = 0;
+uint32_t handleApdu(command_t *cmd, unsigned int *flags, unsigned int *tx) {
+    // unsigned short sw = 0;
 
-    BEGIN_TRY {
-        TRY {
 #ifndef HAVE_LEDGER_PKI
-            if ((G_io_apdu_buffer[OFFSET_CLA] == 0xB0 && (G_io_apdu_buffer[OFFSET_INS] == 0x06))) {
-                // Ledger-PKI APDU not yet caught by the running OS.
-                // Command code not supported
-                PRINTF("Ledger-PKI not yet supported!\n");
-                THROW(APDU_RESPONSE_CMD_CODE_NOT_SUPPORTED);
-            }
+    if ((cmd->cla == 0xB0 && (cmd->ins == 0x06))) {
+        // Ledger-PKI APDU not yet caught by the running OS.
+        // Command code not supported
+        PRINTF("Ledger-PKI not yet supported!\n");
+        THROW(APDU_RESPONSE_CMD_CODE_NOT_SUPPORTED);
+    }
 #endif  // HAVE_LEDGER_PKI
 
-            if (G_io_apdu_buffer[OFFSET_CLA] != CLA) {
-                THROW(APDU_RESPONSE_INVALID_CLA);
-            }
+    if (cmd->cla != CLA) {
+        THROW(APDU_RESPONSE_INVALID_CLA);
+    }
 
-            switch (G_io_apdu_buffer[OFFSET_INS]) {
-                case INS_GET_PUBLIC_KEY:
-                    forget_known_assets();
-                    handleGetPublicKey(G_io_apdu_buffer[OFFSET_P1],
-                                       G_io_apdu_buffer[OFFSET_P2],
-                                       G_io_apdu_buffer + OFFSET_CDATA,
-                                       G_io_apdu_buffer[OFFSET_LC],
-                                       flags,
-                                       tx);
-                    break;
+    switch (cmd->ins) {
+        case INS_GET_PUBLIC_KEY:
+            forget_known_assets();
+            handleGetPublicKey(cmd->p1, cmd->p2, cmd->data, cmd->lc, flags, tx);
+            break;
 
-                case INS_PROVIDE_ERC20_TOKEN_INFORMATION:
-                    handleProvideErc20TokenInformation(G_io_apdu_buffer[OFFSET_P1],
-                                                       G_io_apdu_buffer[OFFSET_P2],
-                                                       G_io_apdu_buffer + OFFSET_CDATA,
-                                                       G_io_apdu_buffer[OFFSET_LC],
-                                                       flags,
-                                                       tx);
-                    break;
+        case INS_PROVIDE_ERC20_TOKEN_INFORMATION:
+            handleProvideErc20TokenInformation(cmd->p1, cmd->p2, cmd->data, cmd->lc, flags, tx);
+            break;
 
 #ifdef HAVE_NFT_SUPPORT
-                case INS_PROVIDE_NFT_INFORMATION:
-                    handleProvideNFTInformation(G_io_apdu_buffer[OFFSET_P1],
-                                                G_io_apdu_buffer[OFFSET_P2],
-                                                G_io_apdu_buffer + OFFSET_CDATA,
-                                                G_io_apdu_buffer[OFFSET_LC],
-                                                flags,
-                                                tx);
-                    break;
+        case INS_PROVIDE_NFT_INFORMATION:
+            handleProvideNFTInformation(cmd->p1, cmd->p2, cmd->data, cmd->lc, flags, tx);
+            break;
 #endif  // HAVE_NFT_SUPPORT
 
-                case INS_SET_EXTERNAL_PLUGIN:
-                    handleSetExternalPlugin(G_io_apdu_buffer[OFFSET_P1],
-                                            G_io_apdu_buffer[OFFSET_P2],
-                                            G_io_apdu_buffer + OFFSET_CDATA,
-                                            G_io_apdu_buffer[OFFSET_LC],
-                                            flags,
-                                            tx);
-                    break;
+        case INS_SET_EXTERNAL_PLUGIN:
+            handleSetExternalPlugin(cmd->p1, cmd->p2, cmd->data, cmd->lc, flags, tx);
+            break;
 
-                case INS_SET_PLUGIN:
-                    handleSetPlugin(G_io_apdu_buffer[OFFSET_P1],
-                                    G_io_apdu_buffer[OFFSET_P2],
-                                    G_io_apdu_buffer + OFFSET_CDATA,
-                                    G_io_apdu_buffer[OFFSET_LC],
-                                    flags,
-                                    tx);
-                    break;
+        case INS_SET_PLUGIN:
+            handleSetPlugin(cmd->p1, cmd->p2, cmd->data, cmd->lc, flags, tx);
+            break;
 
-                case INS_PERFORM_PRIVACY_OPERATION:
-                    handlePerformPrivacyOperation(G_io_apdu_buffer[OFFSET_P1],
-                                                  G_io_apdu_buffer[OFFSET_P2],
-                                                  G_io_apdu_buffer + OFFSET_CDATA,
-                                                  G_io_apdu_buffer[OFFSET_LC],
-                                                  flags,
-                                                  tx);
-                    break;
+        case INS_PERFORM_PRIVACY_OPERATION:
+            handlePerformPrivacyOperation(cmd->p1, cmd->p2, cmd->data, cmd->lc, flags, tx);
+            break;
 
-                case INS_SIGN:
-                    handleSign(G_io_apdu_buffer[OFFSET_P1],
-                               G_io_apdu_buffer[OFFSET_P2],
-                               G_io_apdu_buffer + OFFSET_CDATA,
-                               G_io_apdu_buffer[OFFSET_LC],
-                               flags,
-                               tx);
-                    break;
+        case INS_SIGN:
+            handleSign(cmd->p1, cmd->p2, cmd->data, cmd->lc, flags, tx);
+            break;
 
-                case INS_GET_APP_CONFIGURATION:
-                    handleGetAppConfiguration(G_io_apdu_buffer[OFFSET_P1],
-                                              G_io_apdu_buffer[OFFSET_P2],
-                                              G_io_apdu_buffer + OFFSET_CDATA,
-                                              G_io_apdu_buffer[OFFSET_LC],
-                                              flags,
-                                              tx);
-                    break;
+        case INS_GET_APP_CONFIGURATION:
+            handleGetAppConfiguration(cmd->p1, cmd->p2, cmd->data, cmd->lc, flags, tx);
+            break;
 
-                case INS_SIGN_PERSONAL_MESSAGE:
+        case INS_SIGN_PERSONAL_MESSAGE:
+            forget_known_assets();
+            *flags |= IO_ASYNCH_REPLY;
+            if (!handleSignPersonalMessage(cmd->p1, cmd->p2, cmd->data, cmd->lc)) {
+                reset_app_context();
+            }
+            break;
+
+        case INS_SIGN_EIP_712_MESSAGE:
+            switch (cmd->p2) {
+                case P2_EIP712_LEGACY_IMPLEM:
                     forget_known_assets();
-                    *flags |= IO_ASYNCH_REPLY;
-                    if (!handleSignPersonalMessage(G_io_apdu_buffer[OFFSET_P1],
-                                                   G_io_apdu_buffer[OFFSET_P2],
-                                                   G_io_apdu_buffer + OFFSET_CDATA,
-                                                   G_io_apdu_buffer[OFFSET_LC])) {
-                        reset_app_context();
-                    }
+                    handleSignEIP712Message_v0(cmd->p1, cmd->p2, cmd->data, cmd->lc, flags, tx);
                     break;
-
-                case INS_SIGN_EIP_712_MESSAGE:
-                    switch (G_io_apdu_buffer[OFFSET_P2]) {
-                        case P2_EIP712_LEGACY_IMPLEM:
-                            forget_known_assets();
-                            handleSignEIP712Message_v0(G_io_apdu_buffer[OFFSET_P1],
-                                                       G_io_apdu_buffer[OFFSET_P2],
-                                                       G_io_apdu_buffer + OFFSET_CDATA,
-                                                       G_io_apdu_buffer[OFFSET_LC],
-                                                       flags,
-                                                       tx);
-                            break;
 #ifdef HAVE_EIP712_FULL_SUPPORT
-                        case P2_EIP712_FULL_IMPLEM:
-                            *flags |= IO_ASYNCH_REPLY;
-                            handle_eip712_sign(G_io_apdu_buffer);
-                            break;
-#endif  // HAVE_EIP712_FULL_SUPPORT
-                        default:
-                            THROW(APDU_RESPONSE_INVALID_P1_P2);
-                    }
+                case P2_EIP712_FULL_IMPLEM:
+                    *flags |= IO_ASYNCH_REPLY;
+                    handle_eip712_sign(G_io_apdu_buffer);
                     break;
+#endif  // HAVE_EIP712_FULL_SUPPORT
+                default:
+                    THROW(APDU_RESPONSE_INVALID_P1_P2);
+            }
+            break;
 
 #ifdef HAVE_ETH2
 
-                case INS_GET_ETH2_PUBLIC_KEY:
-                    forget_known_assets();
-                    handleGetEth2PublicKey(G_io_apdu_buffer[OFFSET_P1],
-                                           G_io_apdu_buffer[OFFSET_P2],
-                                           G_io_apdu_buffer + OFFSET_CDATA,
-                                           G_io_apdu_buffer[OFFSET_LC],
-                                           flags,
-                                           tx);
-                    break;
+        case INS_GET_ETH2_PUBLIC_KEY:
+            forget_known_assets();
+            handleGetEth2PublicKey(cmd->p1, cmd->p2, cmd->data, cmd->lc, flags, tx);
+            break;
 
-                case INS_SET_ETH2_WITHDRAWAL_INDEX:
-                    handleSetEth2WithdrawalIndex(G_io_apdu_buffer[OFFSET_P1],
-                                                 G_io_apdu_buffer[OFFSET_P2],
-                                                 G_io_apdu_buffer + OFFSET_CDATA,
-                                                 G_io_apdu_buffer[OFFSET_LC],
-                                                 flags,
-                                                 tx);
-                    break;
+        case INS_SET_ETH2_WITHDRAWAL_INDEX:
+            handleSetEth2WithdrawalIndex(cmd->p1, cmd->p2, cmd->data, cmd->lc, flags, tx);
+            break;
 
 #endif
 
 #ifdef HAVE_EIP712_FULL_SUPPORT
-                case INS_EIP712_STRUCT_DEF:
-                    *flags |= IO_ASYNCH_REPLY;
-                    handle_eip712_struct_def(G_io_apdu_buffer);
-                    break;
+        case INS_EIP712_STRUCT_DEF:
+            *flags |= IO_ASYNCH_REPLY;
+            handle_eip712_struct_def(G_io_apdu_buffer);
+            break;
 
-                case INS_EIP712_STRUCT_IMPL:
-                    *flags |= IO_ASYNCH_REPLY;
-                    handle_eip712_struct_impl(G_io_apdu_buffer);
-                    break;
+        case INS_EIP712_STRUCT_IMPL:
+            *flags |= IO_ASYNCH_REPLY;
+            handle_eip712_struct_impl(G_io_apdu_buffer);
+            break;
 
-                case INS_EIP712_FILTERING:
-                    *flags |= IO_ASYNCH_REPLY;
-                    handle_eip712_filtering(G_io_apdu_buffer);
-                    break;
+        case INS_EIP712_FILTERING:
+            *flags |= IO_ASYNCH_REPLY;
+            handle_eip712_filtering(G_io_apdu_buffer);
+            break;
 #endif  // HAVE_EIP712_FULL_SUPPORT
 
 #ifdef HAVE_DOMAIN_NAME
-                case INS_ENS_GET_CHALLENGE:
-                    handle_get_challenge();
-                    break;
+        case INS_ENS_GET_CHALLENGE:
+            handle_get_challenge();
+            break;
 
-                case INS_ENS_PROVIDE_INFO:
-                    handle_provide_domain_name(G_io_apdu_buffer[OFFSET_P1],
-                                               G_io_apdu_buffer[OFFSET_P2],
-                                               G_io_apdu_buffer + OFFSET_CDATA,
-                                               G_io_apdu_buffer[OFFSET_LC]);
-                    break;
+        case INS_ENS_PROVIDE_INFO:
+            handle_provide_domain_name(cmd->p1, cmd->p2, cmd->data, cmd->lc);
+            break;
 #endif  // HAVE_DOMAIN_NAME
 
-#if 0
-        case 0xFF: // return to dashboard
-          goto return_to_dashboard;
-#endif
-
-                default:
-                    THROW(APDU_RESPONSE_INVALID_INS);
-                    break;
-            }
-        }
-        CATCH(EXCEPTION_IO_RESET) {
-            THROW(EXCEPTION_IO_RESET);
-        }
-        CATCH_OTHER(e) {
-            bool quit_now = G_called_from_swap && G_swap_response_ready;
-            switch (e & 0xF000) {
-                case 0x6000:
-                    // Wipe the transaction context and report the exception
-                    sw = e;
-                    reset_app_context();
-                    break;
-                case APDU_RESPONSE_OK:
-                    // All is well
-                    sw = e;
-                    break;
-                default:
-                    // Internal error
-                    sw = 0x6800 | (e & 0x7FF);
-                    reset_app_context();
-                    break;
-            }
-            // Unexpected exception => report
-            G_io_apdu_buffer[*tx] = sw >> 8;
-            G_io_apdu_buffer[*tx + 1] = sw;
-            *tx += 2;
-
-            // If we are in swap mode and have validated a TX, we send it and immediately quit
-            if (quit_now) {
-                if (io_exchange(CHANNEL_APDU | IO_RETURN_AFTER_TX, *tx) == 0) {
-                    // In case of success, the apdu is sent immediately and eth exits
-                    // Reaching this code means we encountered an error
-                    finalize_exchange_sign_transaction(false);
-                } else {
-                    PRINTF("Unrecoverable\n");
-                    app_exit();
-                }
-            }
-        }
-        FINALLY {
-        }
+        default:
+            THROW(APDU_RESPONSE_INVALID_INS);
+            break;
     }
-    END_TRY;
+    return APDU_RESPONSE_OK;
 }
 
 void app_main(void) {
     unsigned int rx = 0;
     unsigned int tx = 0;
     unsigned int flags = 0;
+    command_t cmd = {0};
 
     // DESIGN NOTE: the bootloader ignores the way APDU are fetched. The only
     // goal is to retrieve APDU.
@@ -379,16 +271,27 @@ void app_main(void) {
                 if (rx == 0) {
                     THROW(APDU_RESPONSE_WRONG_DATA_LENGTH);
                 }
-                if (rx > OFFSET_LC && rx != (G_io_apdu_buffer[OFFSET_LC] + 5)) {
+
+                if (apdu_parser(&cmd, G_io_apdu_buffer, rx) == false) {
                     THROW(APDU_RESPONSE_WRONG_DATA_LENGTH);
                 }
+                PRINTF("=> CLA=%02X | INS=%02X | P1=%02X | P2=%02X | Lc=%02X\n",
+                       cmd.cla,
+                       cmd.ins,
+                       cmd.p1,
+                       cmd.p2,
+                       cmd.lc);
 
-                handleApdu(&flags, &tx);
+                sw = handleApdu(&cmd, &flags, &tx);
+                if (sw == 0) {
+                    continue;
+                }
             }
             CATCH(EXCEPTION_IO_RESET) {
                 THROW(EXCEPTION_IO_RESET);
             }
             CATCH_OTHER(e) {
+                bool quit_now = G_called_from_swap && G_swap_response_ready;
                 switch (e & 0xF000) {
                     case 0x6000:
                         // Wipe the transaction context and report the exception
@@ -409,9 +312,20 @@ void app_main(void) {
                     flags &= ~IO_ASYNCH_REPLY;
                 }
                 // Unexpected exception => report
-                G_io_apdu_buffer[tx] = sw >> 8;
-                G_io_apdu_buffer[tx + 1] = sw;
+                U2BE_ENCODE(G_io_apdu_buffer, tx, sw);
                 tx += 2;
+
+                // If we are in swap mode and have validated a TX, we send it and immediately quit
+                if (quit_now) {
+                    if (io_exchange(CHANNEL_APDU | IO_RETURN_AFTER_TX, tx) == 0) {
+                        // In case of success, the apdu is sent immediately and eth exits
+                        // Reaching this code means we encountered an error
+                        finalize_exchange_sign_transaction(false);
+                    } else {
+                        PRINTF("Unrecoverable\n");
+                        app_exit();
+                    }
+                }
             }
             FINALLY {
             }
