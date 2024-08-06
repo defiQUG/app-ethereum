@@ -461,10 +461,20 @@ def test_eip712_filtering_empty_array(firmware: Firmware,
                 {"name": "chainId", "type": "uint256"},
                 {"name": "verifyingContract", "type": "address"},
             ],
+            "Person": [
+                {"name": "name", "type": "string"},
+                {"name": "addr", "type": "address"},
+            ],
+            "Message": [
+                {"name": "title", "type": "string"},
+                {"name": "to", "type": "Person[]"},
+            ],
             "Root": [
                 {"name": "text", "type": "string"},
                 {"name": "subtext", "type": "string[]"},
-            ]
+                {"name": "msg_list1", "type": "Message[]"},
+                {"name": "msg_list2", "type": "Message[]"},
+            ],
         },
         "primaryType": "Root",
         "domain": {
@@ -476,6 +486,13 @@ def test_eip712_filtering_empty_array(firmware: Firmware,
         "message": {
             "text": "This is a test",
             "subtext": [],
+            "msg_list1": [
+                {
+                    "title": "This is a test",
+                    "to": [],
+                }
+            ],
+            "msg_list2": [],
         }
     }
     filters = {
@@ -488,6 +505,14 @@ def test_eip712_filtering_empty_array(firmware: Firmware,
             "subtext.[]": {
                 "type": "raw",
                 "name": "Sub-Text",
+            },
+            "msg_list1.[].to.[].addr": {
+                "type": "raw",
+                "name": "(1) Recipient addr",
+            },
+            "msg_list2.[].to.[].addr": {
+                "type": "raw",
+                "name": "(2) Recipient addr",
             },
         }
     }
