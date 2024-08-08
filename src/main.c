@@ -77,8 +77,8 @@ void reset_app_context() {
     memset((uint8_t *) &tmpContent, 0, sizeof(tmpContent));
 }
 
-unsigned int io_seproxyhal_send_status(uint32_t sw, uint32_t tx, bool reset, bool idle) {
-    unsigned int err = 0;
+uint32_t io_seproxyhal_send_status(uint32_t sw, uint32_t tx, bool reset, bool idle) {
+    uint32_t err = 0;
     if (reset) {
         reset_app_context();
     }
@@ -119,7 +119,7 @@ const uint8_t *parseBip32(const uint8_t *dataBuffer, uint8_t *dataLength, bip32_
     return dataBuffer;
 }
 
-uint32_t handleApdu(command_t *cmd, unsigned int *flags, unsigned int *tx) {
+static uint32_t handleApdu(command_t *cmd, unsigned int *flags, unsigned int *tx) {
     // unsigned short sw = 0;
 
 #ifndef HAVE_LEDGER_PKI
@@ -288,7 +288,9 @@ void app_main(void) {
                 }
             }
             CATCH(EXCEPTION_IO_RESET) {
-                THROW(EXCEPTION_IO_RESET);
+                // reset IO and UX before continuing
+                CLOSE_TRY;
+                continue;
             }
             CATCH_OTHER(e) {
                 bool quit_now = G_called_from_swap && G_swap_response_ready;
@@ -326,6 +328,10 @@ void app_main(void) {
                         app_exit();
                     }
                 }
+                if (sw != APDU_RESPONSE_OK) {
+                    CLOSE_TRY;
+                    break;
+                }
             }
             FINALLY {
             }
@@ -334,10 +340,28 @@ void app_main(void) {
     }
 }
 
-void init_coin_config(chain_config_t *coin_config) {
+static void init_coin_config(chain_config_t *coin_config) {
     memset(coin_config, 0, sizeof(chain_config_t));
     strcpy(coin_config->coinName, CHAINID_COINNAME);
     coin_config->chainId = CHAIN_ID;
+}
+
+static void storage_init(void) {
+    internalStorage_t storage;
+    if (!N_storage.initialized) {
+        return;
+    }
+
+    storage.contractDetails = false;
+    storage.displayNonce = false;
+#ifdef HAVE_EIP712_FULL_SUPPORT
+    storage.verbose_eip712 = false;
+#endif
+#ifdef HAVE_DOMAIN_NAME
+    storage.verbose_domain_name = false;
+#endif
+    storage.initialized = true;
+    nvm_write((void *) &N_storage, (void *) &storage, sizeof(internalStorage_t));
 }
 
 __attribute__((noreturn)) void coin_main(eth_libargs_t *args) {
@@ -363,51 +387,21 @@ __attribute__((noreturn)) void coin_main(eth_libargs_t *args) {
 
     reset_app_context();
 
-    for (;;) {
-        BEGIN_TRY {
-            TRY {
-                common_app_init();
+    common_app_init();
 
-                if (!N_storage.initialized) {
-                    internalStorage_t storage;
-                    storage.contractDetails = false;
-                    storage.displayNonce = false;
-#ifdef HAVE_EIP712_FULL_SUPPORT
-                    storage.verbose_eip712 = false;
-#endif
-#ifdef HAVE_DOMAIN_NAME
-                    storage.verbose_domain_name = false;
-#endif
-                    storage.initialized = true;
-                    nvm_write((void *) &N_storage, (void *) &storage, sizeof(internalStorage_t));
-                }
+    storage_init();
 
-                ui_idle();
+    ui_idle();
 
 #ifdef HAVE_DOMAIN_NAME
-                // to prevent it from having a fixed value at boot
-                roll_challenge();
+    // to prevent it from having a fixed value at boot
+    roll_challenge();
 #endif  // HAVE_DOMAIN_NAME
 
-                app_main();
-            }
-            CATCH(EXCEPTION_IO_RESET) {
-                // reset IO and UX before continuing
-                CLOSE_TRY;
-                continue;
-            }
-            CATCH_ALL {
-                CLOSE_TRY;
-                break;
-            }
-            FINALLY {
-            }
-        }
-        END_TRY;
-    }
-    app_exit();
-    while (1)
-        ;
+    app_main();
+
+    // Should not return
+    os_sched_exit(-1);
 }
 
 __attribute__((noreturn)) void library_main(eth_libargs_t *args) {
@@ -453,59 +447,50 @@ __attribute__((noreturn)) void library_main(eth_libargs_t *args) {
  */
 __attribute__((noreturn)) void clone_main(eth_libargs_t *args) {
     PRINTF("Starting in clone_main\n");
-    BEGIN_TRY {
-        TRY {
-            unsigned int libcall_params[5];
-            chain_config_t local_chainConfig;
-            init_coin_config(&local_chainConfig);
+    unsigned int libcall_params[5];
+    chain_config_t local_chainConfig;
+    init_coin_config(&local_chainConfig);
 
-            libcall_params[0] = (unsigned int) "Ethereum";
-            libcall_params[1] = 0x100;
-            libcall_params[3] = (unsigned int) &local_chainConfig;
+    libcall_params[0] = (unsigned int) "Ethereum";
+    libcall_params[1] = 0x100;
+    libcall_params[3] = (unsigned int) &local_chainConfig;
 
-            // Clone called by Exchange, forward the request to Ethereum
-            if (args != NULL) {
-                if (args->id != 0x100) {
-                    os_sched_exit(0);
-                }
-                libcall_params[2] = args->command;
-                libcall_params[4] = (unsigned int) args->get_printable_amount;
-                os_lib_call((unsigned int *) &libcall_params);
-                // Ethereum fulfilled the request and returned to us. We return to Exchange.
-                os_lib_end();
-            } else {
-                // Clone called from Dashboard, start Ethereum
-                libcall_params[2] = RUN_APPLICATION;
+    // Clone called by Exchange, forward the request to Ethereum
+    if (args != NULL) {
+        if (args->id != 0x100) {
+            os_sched_exit(0);
+        }
+        libcall_params[2] = args->command;
+        libcall_params[4] = (unsigned int) args->get_printable_amount;
+        os_lib_call((unsigned int *) &libcall_params);
+        // Ethereum fulfilled the request and returned to us. We return to Exchange.
+        os_lib_end();
+    } else {
+        // Clone called from Dashboard, start Ethereum
+        libcall_params[2] = RUN_APPLICATION;
 // On Stax, forward our icon to Ethereum
 #ifdef HAVE_NBGL
-                const char app_name[] = APPNAME;
-                caller_app_t capp;
-                nbgl_icon_details_t icon_details;
-                uint8_t bitmap[sizeof(ICONBITMAP)];
+        const char app_name[] = APPNAME;
+        caller_app_t capp;
+        nbgl_icon_details_t icon_details;
+        uint8_t bitmap[sizeof(ICONBITMAP)];
 
-                memcpy(&icon_details, &ICONGLYPH, sizeof(ICONGLYPH));
-                memcpy(&bitmap, &ICONBITMAP, sizeof(bitmap));
-                icon_details.bitmap = (const uint8_t *) bitmap;
-                capp.name = app_name;
-                capp.icon = &icon_details;
-                libcall_params[4] = (unsigned int) &capp;
+        memcpy(&icon_details, &ICONGLYPH, sizeof(ICONGLYPH));
+        memcpy(&bitmap, &ICONBITMAP, sizeof(bitmap));
+        icon_details.bitmap = (const uint8_t *) bitmap;
+        capp.name = app_name;
+        capp.icon = &icon_details;
+        libcall_params[4] = (unsigned int) &capp;
 #else
-                libcall_params[4] = 0;
+        libcall_params[4] = 0;
 #endif  // HAVE_NBGL
-                os_lib_call((unsigned int *) &libcall_params);
-                // Ethereum should not return to us
-                app_exit();
-            }
-        }
-        FINALLY {
-        }
+        os_lib_call((unsigned int *) &libcall_params);
+        // Ethereum should not return to us
+        app_exit();
     }
-    END_TRY;
 
     // os_lib_call will raise if Ethereum application is not installed. Do not try to recover.
-    app_exit();
-    while (1)
-        ;
+    os_sched_exit(-1);
 }
 
 int ethereum_main(eth_libargs_t *args) {
